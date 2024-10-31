@@ -56,24 +56,39 @@ jobs:
 
       - name: Build iOS
         run: |
+          # Build without codesigning
           flutter build ios --release --no-codesign
+          
+          # Build archive
           cd ios
-          xcodebuild -workspace Runner.xcworkspace \
+          xcodebuild \
+            -workspace Runner.xcworkspace \
             -scheme Runner \
             -configuration Release \
             -sdk iphoneos \
-            -derivedDataPath build/ios \
-            CODE_SIGNING_ALLOWED=NO
+            -archivePath build/Runner.xcarchive \
+            CODE_SIGNING_ALLOWED=NO \
+            archive
 
-      - name: Create IPA
+      - name: Package IPA
         run: |
-          cd ios/build/ios/Release-iphoneos
+          cd ios/build/Runner.xcarchive/Products/Applications
           mkdir Payload
           cp -r Runner.app Payload
           zip -r app-release.ipa Payload
+          
+          # Create directory for artifact
+          mkdir -p ../../../../../build/ios/ipa
+          mv app-release.ipa ../../../../../build/ios/ipa/
 
       - name: Upload IPA
         uses: actions/upload-artifact@v3
         with:
           name: ios-release
-          path: ios/build/ios/Release-iphoneos/app-release.ipa
+          path: ios/build/ios/ipa/app-release.ipa
+
+      - name: List build directories (for debugging)
+        if: always()
+        run: |
+          echo "iOS build directory contents:"
+          ls -R ios/build/
