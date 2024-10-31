@@ -28,7 +28,7 @@ jobs:
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.3.0'  # Ensures compatibility with Dart SDK >=3.1.0
+          flutter-version: '3.3.0'  # Specify a compatible Flutter version with Dart 3.0.0 or newer
           architecture: x64
 
       - name: Install dependencies
@@ -59,7 +59,7 @@ jobs:
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.3.0'  # Ensures compatibility with Dart SDK >=3.1.0
+          flutter-version: '3.3.0'  # Specify a compatible Flutter version with Dart 3.0.0 or newer
           architecture: x64
 
       - name: Install dependencies
