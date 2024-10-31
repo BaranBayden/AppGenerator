@@ -7,7 +7,31 @@ on:
     branches: [ "main" ]
 
 jobs:
+  initialize-builds:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+        
+      - name: Create and Initialize builds directory
+        run: |
+          mkdir -p builds
+          touch builds/.gitkeep
+          
+      - name: Configure Git
+        run: |
+          git config --global user.name 'GitHub Actions'
+          git config --global user.email 'github-actions@github.com'
+          
+      - name: Commit builds directory
+        run: |
+          git add builds/.gitkeep
+          git commit -m "Add builds directory [skip ci]" || echo "No changes to commit"
+          git push origin main || echo "No changes to push"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
   build-android:
+    needs: initialize-builds
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
@@ -31,13 +55,19 @@ jobs:
       - name: Build APK
         run: flutter build apk --release --no-shrink
 
-      - name: Upload APK
+      - name: Copy APK to builds directory
+        run: |
+          mkdir -p builds
+          cp build/app/outputs/flutter-apk/app-release.apk builds/
+
+      - name: Upload APK for iOS job
         uses: actions/upload-artifact@v3
         with:
-          name: android-release
-          path: build/app/outputs/flutter-apk/app-release.apk
+          name: android-build
+          path: builds/app-release.apk
 
   build-ios:
+    needs: build-android
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v3
@@ -58,34 +88,36 @@ jobs:
         run: |
           flutter build ios --release --no-codesign
 
-      - name: Create IPA Directory
-        run: |
-          mkdir -p build/ios/ipa
-
       - name: Create Unsigned IPA
         run: |
           cd build/ios/iphoneos
           mkdir Payload
           cp -r Runner.app Payload
           zip -r app-release.ipa Payload
-          cp app-release.ipa ../../ipa/
-          
-      - name: Verify IPA
+          mkdir -p ../../../builds
+          cp app-release.ipa ../../../builds/
+
+      - name: Download Android Build
+        uses: actions/download-artifact@v3
+        with:
+          name: android-build
+          path: builds/
+
+      - name: Configure Git
         run: |
-          echo "Contents of build/ios directory:"
-          ls -R build/ios
-          echo "Contents of build/ios/ipa directory:"
-          ls -R build/ios/ipa
+          git config --global user.name 'GitHub Actions'
+          git config --global user.email 'github-actions@github.com'
 
-      - name: Upload IPA
+      - name: Commit and Push Builds
+        run: |
+          git add builds/
+          git commit -m "Add latest builds [skip ci]" || echo "No changes to commit"
+          git push origin main || echo "No changes to push"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload as Artifacts (Backup)
         uses: actions/upload-artifact@v3
         with:
-          name: ios-release
-          path: build/ios/ipa/app-release.ipa
-
-      - name: Upload Build Directory (if IPA creation fails)
-        if: failure()
-        uses: actions/upload-artifact@v3
-        with:
-          name: ios-build-directory
-          path: build/ios
+          name: mobile-builds
+          path: builds/
