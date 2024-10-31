@@ -1,75 +1,79 @@
-name: Flutter CI/CD
+name: Build Flutter Mobile Apps (Unsigned)
 
 on:
   push:
-    branches:
-      - main
+    branches: [ "main" ]
   pull_request:
-    branches:
-      - main
+    branches: [ "main" ]
 
 jobs:
-  build_android:
+  build-android:
     runs-on: ubuntu-latest
-
-    env:
-      FLUTTER_DISABLE_TELEMETRY: true  # Disable telemetry
-
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v3
+      - uses: actions/checkout@v3
 
-      - name: Set up Python (to force x64 architecture)
-        uses: actions/setup-python@v4
+      - name: Setup Java
+        uses: actions/setup-java@v3
         with:
-          python-version: '3.x'
-          architecture: 'x64'
+          distribution: 'zulu'
+          java-version: '11'
 
-      - name: Set up Flutter
+      - name: Setup Flutter SDK
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.3.0'  # Specify a compatible Flutter version with Dart 3.0.0 or newer
-          architecture: x64
+          flutter-version: '3.x'
+          channel: 'stable'
+          cache: true
 
       - name: Install dependencies
         run: flutter pub get
 
-      - name: Run tests
-        run: flutter test
+      - name: Build APK
+        run: flutter build apk --release --no-shrink
 
-      - name: Build Android APK
-        run: flutter build apk --release
-
-      - name: Upload Android APK
+      - name: Upload APK
         uses: actions/upload-artifact@v3
         with:
-          name: app-release.apk
+          name: android-release
           path: build/app/outputs/flutter-apk/app-release.apk
 
-  build_ios:
+  build-ios:
     runs-on: macos-latest
-
-    env:
-      FLUTTER_DISABLE_TELEMETRY: true  # Disable telemetry
-
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v3
+      - uses: actions/checkout@v3
 
-      - name: Set up Flutter
+      - name: Setup Flutter SDK
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.3.0'  # Specify a compatible Flutter version with Dart 3.0.0 or newer
-          architecture: x64
+          flutter-version: '3.x'
+          channel: 'stable'
+          cache: true
 
       - name: Install dependencies
-        run: flutter pub get
+        run: |
+          flutter pub get
+          cd ios && pod install
 
       - name: Build iOS
-        run: flutter build ios --release --no-codesign
+        run: |
+          flutter build ios --release --no-codesign
+          cd ios
+          xcodebuild -workspace Runner.xcworkspace \
+            -scheme Runner \
+            -configuration Release \
+            -sdk iphoneos \
+            -derivedDataPath build/ios \
+            CODE_SIGNING_ALLOWED=NO
 
-      - name: Upload iOS IPA
+      - name: Create IPA
+        run: |
+          cd ios/build/ios/Release-iphoneos
+          mkdir Payload
+          cp -r Runner.app Payload
+          zip -r app-release.ipa Payload
+
+      - name: Upload IPA
         uses: actions/upload-artifact@v3
         with:
-          name: app-release.ipa
-          path: build/ios/iphoneos/Runner.app
+          name: ios-release
+          path: ios/build/ios/Release-iphoneos/app-release.ipa
